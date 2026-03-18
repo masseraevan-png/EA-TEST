@@ -1,0 +1,254 @@
+project:
+  name: trading-research-starter
+  objective: robust_intraday_strategy_discovery
+  phase: phase_1_simple_interpretable_strategies
+
+universe:
+  symbols:
+    - EURUSD
+    - GBPUSD
+    - USDJPY
+    - XAUUSD
+    - NAS100
+    - US30
+  primary_timeframes:
+    - M5
+    - M15
+  default_timeframe: M5
+
+sessions:
+  timezone: UTC
+  enabled_sessions:
+    - london
+    - new_york
+  definitions:
+    asia:
+      start: "00:00"
+      end: "06:59"
+    london:
+      start: "07:00"
+      end: "11:59"
+    new_york:
+      start: "13:00"
+      end: "16:59"
+    london_new_york_overlap:
+      start: "13:00"
+      end: "15:59"
+  exclude_hours:
+    - "21:00-23:59"
+
+research_scope:
+  allowed_strategy_families:
+    - session_breakout
+    - mean_reversion_after_expansion
+    - pullback_continuation
+    - volatility_compression_expansion
+    - time_of_day_effects
+    - liquidity_sweep_failed_break
+  disallowed_for_phase_1:
+    - deep_learning
+    - opaque_ml_models
+    - heavy_indicator_stacking
+    - news_trading
+    - martingale
+    - grid
+    - averaging_down_without_hard_stop
+
+risk_model:
+  sizing_mode: fixed_fractional
+  risk_per_trade: 0.005
+  max_open_positions_per_symbol: 1
+  max_open_positions_total: 3
+  pyramiding: false
+
+execution:
+  mode: bar_based_conservative
+  entry_timing: next_bar_open
+  allow_same_bar_entry_and_exit: false
+  allow_same_bar_reentry: false
+  stop_loss_priority_over_take_profit: true
+  price_source_for_signals: completed_bars_only
+  notes:
+    - No tick-perfect assumptions.
+    - If both stop and target are touched within the same bar and intrabar order is unknown, assume the less favorable fill.
+    - Favor conservative fills over optimistic ones.
+    - Current spread and slippage assumptions are intentionally somewhat pessimistic for framework-building purposes.
+
+data:
+  timezone: UTC
+  base_currency: USD
+  require_ohlcv_columns:
+    - timestamp
+    - open
+    - high
+    - low
+    - close
+    - volume
+  min_history_bars_per_symbol: 5000
+  split:
+    train_start: "2018-01-01"
+    train_end: "2022-12-31"
+    validation_start: "2023-01-01"
+    validation_end: "2023-12-31"
+    test_start: "2024-01-01"
+    test_end: "2024-12-31"
+    holdout_start: "2025-01-01"
+    holdout_end: "2025-12-31"
+
+costs:
+  model: symbol_specific_explicit_units
+  default:
+    spread_value: 0.0
+    spread_unit: null
+    slippage_value: 0.0
+    slippage_unit: null
+    commission_round_turn_usd_per_lot: 0.0
+    notes:
+      - Default cost fields are placeholders only.
+      - Every actively traded symbol in the research universe must use an explicit symbol-specific cost entry.
+      - If a symbol-specific entry is missing for a tested symbol, the framework should fail loudly rather than silently rely on defaults.
+
+  symbols:
+    EURUSD:
+      spread_value: 0.20
+      spread_unit: pips
+      slippage_value: 0.10
+      slippage_unit: pips
+      commission_round_turn_usd_per_lot: 7.0
+      notes:
+        - Conservative relative to the best observed spread.
+        - Zero-spread moments must not be treated as the research baseline.
+
+    GBPUSD:
+      spread_value: 0.40
+      spread_unit: pips
+      slippage_value: 0.15
+      slippage_unit: pips
+      commission_round_turn_usd_per_lot: 7.0
+      notes:
+        - Slightly harsher than best-case market conditions.
+
+    USDJPY:
+      spread_value: 0.40
+      spread_unit: pips
+      slippage_value: 0.10
+      slippage_unit: pips
+      commission_round_turn_usd_per_lot: 7.0
+      notes:
+        - Keep pip conventions explicit during implementation.
+
+    XAUUSD:
+      spread_value: 0.20
+      spread_unit: usd
+      slippage_value: 0.05
+      slippage_unit: usd
+      commission_round_turn_usd_per_lot: 7.0
+      notes:
+        - Gold execution can degrade during volatility bursts.
+
+    NAS100:
+      spread_value: 2.0
+      spread_unit: index_points
+      slippage_value: 0.5
+      slippage_unit: index_points
+      commission_round_turn_usd_per_lot: 0.0
+      notes:
+        - Commission-free assumption is broker-style, but spread is intentionally conservative.
+
+    US30:
+      spread_value: 2.5
+      spread_unit: index_points
+      slippage_value: 0.75
+      slippage_unit: index_points
+      commission_round_turn_usd_per_lot: 0.0
+      notes:
+        - Keep assumptions conservative because index CFD execution can worsen around active windows.
+
+  stress:
+    spread_multipliers:
+      - 1.0
+      - 1.25
+      - 1.5
+      - 2.0
+    slippage_multipliers:
+      - 1.0
+      - 1.25
+      - 1.5
+      - 2.0
+    commission_multipliers:
+      - 1.0
+      - 1.25
+
+filters:
+  min_total_trades: 150
+  min_train_trades: 60
+  min_validation_trades: 25
+  min_test_trades: 25
+  min_oos_trades: 50
+  min_oos_profit_factor: 1.10
+  min_oos_expectancy_r: 0.0
+  min_oos_return_to_max_dd: 1.00
+  min_symbols_with_positive_oos: 2
+  max_single_symbol_profit_share: 0.65
+  require_positive_combined_oos: true
+  require_positive_after_cost_stress: true
+  reject_if_parameter_peak_is_isolated: true
+  require_holdout_sanity_check: true
+
+walk_forward:
+  enabled: true
+  mode: rolling
+  train_months: 24
+  validation_months: 6
+  test_months: 6
+  step_months: 3
+  min_windows: 4
+
+stress_tests:
+  enabled: true
+  monte_carlo_iterations: 500
+  monte_carlo_methods:
+    - trade_order_shuffle
+    - bootstrap_with_replacement
+  adverse_fill_scenarios:
+    - base
+    - moderate
+    - harsh
+  parameter_neighborhood:
+    enabled: true
+    neighborhood_steps: 1
+    min_neighbor_pass_ratio: 0.50
+
+metrics:
+  required:
+    - total_return
+    - annualized_return
+    - max_drawdown
+    - return_to_max_drawdown
+    - profit_factor
+    - expectancy_per_trade
+    - expectancy_r
+    - win_rate
+    - average_win
+    - average_loss
+    - total_trades
+    - consecutive_losses_max
+    - oos_trades
+    - by_symbol_results
+    - by_year_results
+    - monthly_returns
+  optional:
+    - ulcer_index
+    - risk_of_ruin_proxy
+
+reporting:
+  output_dir: reports/generated
+  export_dir: exports
+  save_trade_logs: true
+  save_equity_curve: true
+  save_monthly_returns: true
+  save_parameter_sensitivity: true
+  classification_labels:
+    - Rejected
+    - Needs more validation
+    - Survivor candidate
