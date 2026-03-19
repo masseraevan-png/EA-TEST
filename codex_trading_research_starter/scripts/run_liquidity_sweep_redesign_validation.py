@@ -19,24 +19,7 @@ from research_pipeline.strategies.price_action import LiquiditySweepReversalStra
 
 REDESIGN_VARIANTS: list[tuple[str, dict[str, object]]] = [
     (
-        "redesign_deep_reclaim",
-        {
-            "min_sweep_atr": 0.20,
-            "min_reentry_fraction": 0.30,
-            "min_wick_fraction": 0.50,
-            "min_body_fraction": 0.25,
-            "max_close_in_range": 0.35,
-            "min_close_in_range": 0.65,
-            "min_asia_range_atr": 1.50,
-            "allowed_hours": [7, 8, 9, 13, 14],
-            "stop_atr": 1.20,
-            "target_atr": 3.00,
-            "timeout_bars": 12,
-            "direction": "both",
-        },
-    ),
-    (
-        "redesign_fast_rejection",
+        "redesign_fast_rejection_base",
         {
             "min_sweep_atr": 0.18,
             "min_reentry_fraction": 0.25,
@@ -48,6 +31,57 @@ REDESIGN_VARIANTS: list[tuple[str, dict[str, object]]] = [
             "allowed_hours": [7, 8, 9, 10, 13, 14],
             "stop_atr": 1.30,
             "target_atr": 2.80,
+            "timeout_bars": 10,
+            "direction": "both",
+        },
+    ),
+    (
+        "redesign_fast_rejection_reentry_relief",
+        {
+            "min_sweep_atr": 0.18,
+            "min_reentry_fraction": 0.22,
+            "min_wick_fraction": 0.55,
+            "min_body_fraction": 0.20,
+            "max_close_in_range": 0.43,
+            "min_close_in_range": 0.57,
+            "min_asia_range_atr": 1.20,
+            "allowed_hours": [7, 8, 9, 10, 13, 14],
+            "stop_atr": 1.30,
+            "target_atr": 2.80,
+            "timeout_bars": 10,
+            "direction": "both",
+        },
+    ),
+    (
+        "redesign_fast_rejection_hour_extension",
+        {
+            "min_sweep_atr": 0.18,
+            "min_reentry_fraction": 0.25,
+            "min_wick_fraction": 0.55,
+            "min_body_fraction": 0.20,
+            "max_close_in_range": 0.40,
+            "min_close_in_range": 0.60,
+            "min_asia_range_atr": 1.20,
+            "allowed_hours": [7, 8, 9, 10, 11, 13, 14],
+            "stop_atr": 1.30,
+            "target_atr": 2.80,
+            "timeout_bars": 10,
+            "direction": "both",
+        },
+    ),
+    (
+        "redesign_fast_rejection_sweep_relief",
+        {
+            "min_sweep_atr": 0.16,
+            "min_reentry_fraction": 0.25,
+            "min_wick_fraction": 0.52,
+            "min_body_fraction": 0.18,
+            "max_close_in_range": 0.42,
+            "min_close_in_range": 0.58,
+            "min_asia_range_atr": 1.15,
+            "allowed_hours": [7, 8, 9, 10, 13, 14],
+            "stop_atr": 1.25,
+            "target_atr": 2.60,
             "timeout_bars": 10,
             "direction": "both",
         },
@@ -130,9 +164,10 @@ def render_validation_report(
 - Symbol: {symbol}
 - Timeframe: {timeframe}
 - Run mode: {run_mode}
-- Active candidate family: liquidity_sweep_reversal only
+- Active candidate family: liquidity_sweep_reversal / redesign_fast_rejection only
 - Validation style: bounded, fixed-logic multi-window check
-- Optimization/search policy: no further optimization, no broad parameter search
+- Optimization/search policy: no broad parameter search; only a small controlled neighborhood around fast_rejection
+- Deprioritized: redesign_deep_reclaim and prior breakout/mean-reversion families
 
 ## 2. Window-by-window results
 | Variant | Window | Start | End | Trades | Gross PnL/trade | Net PnL/trade | Profit factor | Max drawdown | Avg explicit cost/trade |
