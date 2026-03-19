@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +23,7 @@ class ReportWriter:
         symbol_unit_notes: list[str],
         data_source_notes: list[str],
         data_quality_notes: list[str],
+        data_quality_warning_details: list[str],
     ) -> dict[str, Path]:
         reports_dir = self.repo_root / "reports" / "generated"
         exports_dir = self.repo_root / "exports"
@@ -53,6 +53,7 @@ class ReportWriter:
                 symbol_unit_notes,
                 data_source_notes,
                 data_quality_notes,
+                data_quality_warning_details,
             ),
             encoding="utf-8",
         )
@@ -73,7 +74,7 @@ class ReportWriter:
         comparison.drop_duplicates(subset=["strategy_name"], keep="last").to_csv(comparison_path, index=False)
         return {"report": report_path, "comparison": comparison_path}
 
-    def _render_report(self, batch: StrategyBatchResult, walkforward_rows: list[dict[str, Any]], hypothesis: str, description: str, timeframe: str, symbols: list[str], monte_carlo: dict[str, float], symbol_unit_notes: list[str], data_source_notes: list[str], data_quality_notes: list[str]) -> str:
+    def _render_report(self, batch: StrategyBatchResult, walkforward_rows: list[dict[str, Any]], hypothesis: str, description: str, timeframe: str, symbols: list[str], monte_carlo: dict[str, float], symbol_unit_notes: list[str], data_source_notes: list[str], data_quality_notes: list[str], data_quality_warning_details: list[str]) -> str:
         acceptance_lines = "\n".join(
             f"| {row['criterion']} | {row['status']} | {row['comment']} |" for row in batch.acceptance_rows
         )
@@ -125,6 +126,8 @@ class ReportWriter:
 {chr(10).join(f"  - {note}" for note in data_source_notes)}
 - Data-quality audit:
 {chr(10).join(f"  - {note}" for note in data_quality_notes)}
+- Warning-level same-day gaps:
+{chr(10).join(f"  - {note}" for note in data_quality_warning_details) if data_quality_warning_details else "  - None."}
 
 ## 6. Cost and execution assumptions
 - Explicit symbol-specific costs from `configs/base_config.yaml`

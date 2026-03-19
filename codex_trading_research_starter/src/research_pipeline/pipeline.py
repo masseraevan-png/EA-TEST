@@ -157,6 +157,13 @@ class ResearchPipeline:
                 for symbol in symbols
                 if symbol in train.data_quality
             ],
+            data_quality_warning_details=[
+                f"{symbol}: {issue['message']}"
+                for symbol in symbols
+                if symbol in train.data_quality
+                for issue in train.data_quality[symbol]["issues"]
+                if issue["severity"] == "warning" and "same-day intraday gap" in issue["message"]
+            ],
         )
         self.logger.append(batch, timeframe, symbols)
         return {
