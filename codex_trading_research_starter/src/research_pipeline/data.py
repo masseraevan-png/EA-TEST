@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -94,14 +95,11 @@ class MarketDataLoader:
             issues.append({"severity": "fatal", "message": f"Impossible OHLC values found in {int(impossible_mask.sum())} rows."})
 
         expected_delta = pd.Timedelta(minutes=5 if timeframe == "M5" else 15)
-        diffs = frame["timestamp"].diff().dropna()
-        large_intraday_gaps = diffs[
-            (diffs > expected_delta * 3)
-            & (frame["timestamp"].shift(1).dt.date == frame["timestamp"].dt.date)
-        ]
-        if not large_intraday_gaps.empty:
-            issues.append({"severity": "fatal", "message": f"Detected {len(large_intraday_gaps)} large intraday gaps beyond expected timeframe cadence."})
-        irregular_gaps = diffs[(diffs > expected_delta) & (diffs <= expected_delta * 3)]
+        diffs = frame["timestamp"].diff()
+        large_intraday_gap_rows = self._collect_same_day_gaps(frame, diffs, expected_delta)
+        issues.extend(self._classify_same_day_intraday_gaps(large_intraday_gap_rows, expected_delta))
+        nonzero_diffs = diffs.dropna()
+        irregular_gaps = nonzero_diffs[(nonzero_diffs > expected_delta) & (nonzero_diffs <= expected_delta * 3)]
         if not irregular_gaps.empty:
             issues.append({"severity": "warning", "message": f"Detected {len(irregular_gaps)} smaller missing-bar gaps."})
 
@@ -140,6 +138,71 @@ class MarketDataLoader:
                 issues.append({"severity": "warning", "message": f"CSV filename {Path(source).name} does not match expected {expected_name}."})
 
         return self._build_quality_summary(symbol, timeframe, source, issues, frame), frame
+
+    @staticmethod
+    def _collect_same_day_gaps(
+        frame: pd.DataFrame,
+        diffs: pd.Series,
+        expected_delta: pd.Timedelta,
+    ) -> list[dict[str, Any]]:
+        same_day_mask = (
+            diffs.gt(expected_delta * 3)
+            & frame["timestamp"].shift(1).dt.date.eq(frame["timestamp"].dt.date)
+        ).fillna(False)
+        gap_rows: list[dict[str, Any]] = []
+        for idx in frame.index[same_day_mask]:
+            previous_timestamp = frame.at[idx - 1, "timestamp"]
+            current_timestamp = frame.at[idx, "timestamp"]
+            gap_rows.append(
+                {
+                    "previous_timestamp": previous_timestamp,
+                    "timestamp": current_timestamp,
+                    "gap": current_timestamp - previous_timestamp,
+                    "missing_bars": int(((current_timestamp - previous_timestamp) / expected_delta) - 1),
+                }
+            )
+        return gap_rows
+
+    @staticmethod
+    def _classify_same_day_intraday_gaps(
+        gap_rows: list[dict[str, Any]],
+        expected_delta: pd.Timedelta,
+    ) -> list[dict[str, str]]:
+        if not gap_rows:
+            return []
+        gap_dates = [row["timestamp"].date() for row in gap_rows]
+        gaps_per_day = Counter(gap_dates)
+        sorted_dates = sorted(set(gap_dates))
+        min_days_apart = min(
+            (current - previous).days
+            for previous, current in zip(sorted_dates, sorted_dates[1:])
+        ) if len(sorted_dates) > 1 else None
+
+        warning_eligible = (
+            len(gap_rows) <= 2
+            and max(gaps_per_day.values()) == 1
+            and all(row["gap"] <= expected_delta * 8 for row in gap_rows)
+            and (min_days_apart is None or min_days_apart >= 20)
+        )
+        gap_details = "; ".join(
+            f"{row['previous_timestamp']} -> {row['timestamp']} ({row['gap']}, missing {row['missing_bars']} bars)"
+            for row in gap_rows
+        )
+        if warning_eligible:
+            return [
+                {
+                    "severity": "warning",
+                    "message": f"Detected {len(gap_rows)} isolated same-day intraday gap(s): {gap_details}",
+                }
+            ]
+        return [
+            {
+                "severity": "fatal",
+                "message": (
+                    f"Detected {len(gap_rows)} repeated/clustered same-day intraday gap(s) beyond expected cadence: {gap_details}"
+                ),
+            }
+        ]
 
     @staticmethod
     def _build_quality_summary(
