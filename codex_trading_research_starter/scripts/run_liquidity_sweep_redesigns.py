@@ -127,8 +127,8 @@ def render_report(
 - Timeframe: {timeframe}
 - Run mode: {run_mode}
 - Bounded backtest window: {start} to {end}
-- Active candidate family: liquidity_sweep_reversal only
-- Deprioritized family: opening_drive_pullback
+- Active candidate family: liquidity_sweep_reversal / redesign_fast_rejection only
+- Deprioritized: redesign_deep_reclaim and prior breakout/mean-reversion families
 
 ## 2. Baseline post-mortem
 | Variant | Trades | Avg hold (hrs) | Avg stop (pips) | Avg size (lots) | Gross PnL/trade | Net PnL/trade | Spread/Slip/Comm per trade | Win rate | Avg winner | Avg loser |
@@ -169,24 +169,7 @@ def main() -> None:
     ]
     redesign_variants = [
         (
-            "redesign_deep_reclaim",
-            {
-                "min_sweep_atr": 0.20,
-                "min_reentry_fraction": 0.30,
-                "min_wick_fraction": 0.50,
-                "min_body_fraction": 0.25,
-                "max_close_in_range": 0.35,
-                "min_close_in_range": 0.65,
-                "min_asia_range_atr": 1.50,
-                "allowed_hours": [7, 8, 9, 13, 14],
-                "stop_atr": 1.20,
-                "target_atr": 3.00,
-                "timeout_bars": 12,
-                "direction": "both",
-            },
-        ),
-        (
-            "redesign_fast_rejection",
+            "redesign_fast_rejection_base",
             {
                 "min_sweep_atr": 0.18,
                 "min_reentry_fraction": 0.25,
@@ -202,19 +185,74 @@ def main() -> None:
                 "direction": "both",
             },
         ),
+        (
+            "redesign_fast_rejection_reentry_relief",
+            {
+                "min_sweep_atr": 0.18,
+                "min_reentry_fraction": 0.22,
+                "min_wick_fraction": 0.55,
+                "min_body_fraction": 0.20,
+                "max_close_in_range": 0.43,
+                "min_close_in_range": 0.57,
+                "min_asia_range_atr": 1.20,
+                "allowed_hours": [7, 8, 9, 10, 13, 14],
+                "stop_atr": 1.30,
+                "target_atr": 2.80,
+                "timeout_bars": 10,
+                "direction": "both",
+            },
+        ),
+        (
+            "redesign_fast_rejection_hour_extension",
+            {
+                "min_sweep_atr": 0.18,
+                "min_reentry_fraction": 0.25,
+                "min_wick_fraction": 0.55,
+                "min_body_fraction": 0.20,
+                "max_close_in_range": 0.40,
+                "min_close_in_range": 0.60,
+                "min_asia_range_atr": 1.20,
+                "allowed_hours": [7, 8, 9, 10, 11, 13, 14],
+                "stop_atr": 1.30,
+                "target_atr": 2.80,
+                "timeout_bars": 10,
+                "direction": "both",
+            },
+        ),
+        (
+            "redesign_fast_rejection_sweep_relief",
+            {
+                "min_sweep_atr": 0.16,
+                "min_reentry_fraction": 0.25,
+                "min_wick_fraction": 0.52,
+                "min_body_fraction": 0.18,
+                "max_close_in_range": 0.42,
+                "min_close_in_range": 0.58,
+                "min_asia_range_atr": 1.15,
+                "allowed_hours": [7, 8, 9, 10, 13, 14],
+                "stop_atr": 1.25,
+                "target_atr": 2.60,
+                "timeout_bars": 10,
+                "direction": "both",
+            },
+        ),
     ]
     proposals = [
         (
-            "deep_reclaim",
-            "Only take large-session sweeps that reclaim deeply back inside the Asian range, close near the opposite end of the rejection bar, and use a wider stop with a 3R target to cut size-driven friction.",
+            "fast_rejection_base",
+            "Current candidate: sharp wick-led rejections during liquid hours, meaningful reclaim body, and quick exits to avoid paying costs on weak follow-through.",
         ),
         (
-            "fast_rejection",
-            "Trade only the sharpest wick-led rejections during the most liquid hours, require a meaningful body in the reclaim direction, and exit quickly to avoid paying costs on weaker follow-through.",
+            "fast_rejection_reentry_relief",
+            "Loosen only the reclaim-depth thresholds slightly to admit bars that still reject decisively but do not close quite as deep inside the range.",
         ),
         (
-            "one_side_confirmation",
-            "Restrict the setup to the historically stronger direction only after confirming which side of the Asian range produces better gross edge, reducing frequency and avoiding symmetrical low-quality trades.",
+            "fast_rejection_hour_extension",
+            "Keep the base pattern unchanged but add the 11:00 hour to test whether one extra liquid hour can add modest frequency without opening the floodgates.",
+        ),
+        (
+            "fast_rejection_sweep_relief",
+            "Slightly reduce the minimum sweep and wick/body strictness while keeping the same rejection family and quick-exit structure.",
         ),
     ]
 
