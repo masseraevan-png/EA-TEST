@@ -12,6 +12,7 @@ from .evaluation import AcceptanceEvaluator, ParameterSweep, StrategyBatchResult
 from .experiment_log import ExperimentLogger
 from .reporting import ReportWriter
 from .strategies.mean_reversion import MeanReversionAfterExpansionStrategy
+from .strategies.price_action import LiquiditySweepReversalStrategy, OpeningDrivePullbackStrategy
 from .strategies.session_breakout import SessionBreakoutStrategy
 from .walkforward import WalkForwardRunner
 
@@ -19,6 +20,8 @@ from .walkforward import WalkForwardRunner
 STRATEGY_REGISTRY = {
     "session_breakout": SessionBreakoutStrategy,
     "mean_reversion_after_expansion": MeanReversionAfterExpansionStrategy,
+    "liquidity_sweep_reversal": LiquiditySweepReversalStrategy,
+    "opening_drive_pullback": OpeningDrivePullbackStrategy,
 }
 
 
@@ -156,6 +159,13 @@ class ResearchPipeline:
                 )
                 for symbol in symbols
                 if symbol in train.data_quality
+            ],
+            data_quality_warning_details=[
+                f"{symbol}: {issue['message']}"
+                for symbol in symbols
+                if symbol in train.data_quality
+                for issue in train.data_quality[symbol]["issues"]
+                if issue["severity"] == "warning" and "same-day intraday gap" in issue["message"]
             ],
         )
         self.logger.append(batch, timeframe, symbols)

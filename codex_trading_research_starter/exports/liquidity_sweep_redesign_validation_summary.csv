@@ -1,0 +1,5 @@
+variant,total_trades,window_count,positive_windows,mean_net_pnl_per_trade,median_net_pnl_per_trade,mean_profit_factor,worst_max_drawdown,mean_explicit_cost_per_trade
+redesign_fast_rejection_base,10,3,3,756.936155555545,650.2887999999687,inf,16.10999999998603,73.81333333333333
+redesign_fast_rejection_hour_extension,12,3,3,640.2275623582676,587.6126666667044,inf,569.1839999999938,67.93809523809524
+redesign_fast_rejection_reentry_relief,12,3,3,513.6200047618973,494.8667142856871,6.480531895525975,178.5399999999645,73.89388888888888
+redesign_fast_rejection_sweep_relief,15,3,3,329.6478184523879,245.90367857144363,42.582229063451564,702.9750000000204,77.91428571428571

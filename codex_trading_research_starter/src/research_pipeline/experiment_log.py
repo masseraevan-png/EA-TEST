@@ -18,6 +18,15 @@ class ExperimentLogger:
             log["run_mode"] = ""
         if "data_quality_status" not in log.columns:
             log["data_quality_status"] = ""
+        if "data_quality_warnings" not in log.columns:
+            log["data_quality_warnings"] = False
+        if "data_quality_warning_count" not in log.columns:
+            log["data_quality_warning_count"] = 0
+        data_quality_summaries = [
+            batch.train.data_quality[symbol]
+            for symbol in symbols
+            if symbol in batch.train.data_quality
+        ]
         row = {
             "experiment_id": uuid4().hex[:12],
             "date_utc": pd.Timestamp.utcnow().isoformat(),
@@ -63,6 +72,8 @@ class ExperimentLogger:
                 for symbol in symbols
                 if symbol in batch.train.data_quality
             ),
+            "data_quality_warnings": any(summary["warning_count"] > 0 for summary in data_quality_summaries),
+            "data_quality_warning_count": sum(summary["warning_count"] for summary in data_quality_summaries),
         }
         updated = pd.concat([log, pd.DataFrame([row])], ignore_index=True)
         updated.to_csv(self.path, index=False)

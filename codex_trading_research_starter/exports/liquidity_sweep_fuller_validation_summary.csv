@@ -1,0 +1,3 @@
+variant,total_trades,train_trades,validation_trades,test_trades,holdout_trades,gross_pnl_per_trade,net_pnl_per_trade,profit_factor,max_drawdown,return_to_max_drawdown,avg_explicit_cost_per_trade,walkforward_pass_rate,stress_pass_rate,classification
+redesign_fast_rejection_base,69,43,11,8,7,115.25161904760924,35.471908902681676,1.108142736657933,6812.54257142877,0.3592728689212018,79.77971014492752,0.75,0.8,Rejected
+redesign_fast_rejection_reentry_relief,81,50,12,9,10,48.41521957671161,-28.368731040572335,0.9183074516840188,8376.776785714464,-0.274314008009033,76.78395061728395,0.5,0.8,Rejected

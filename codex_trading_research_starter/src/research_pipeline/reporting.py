@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+import json
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
+from .backtest import BacktestArtifacts
 from .evaluation import StrategyBatchResult, monte_carlo_summary
 
 
@@ -24,6 +25,7 @@ class ReportWriter:
         symbol_unit_notes: list[str],
         data_source_notes: list[str],
         data_quality_notes: list[str],
+        data_quality_warning_details: list[str],
     ) -> dict[str, Path]:
         reports_dir = self.repo_root / "reports" / "generated"
         exports_dir = self.repo_root / "exports"
@@ -53,6 +55,7 @@ class ReportWriter:
                 symbol_unit_notes,
                 data_source_notes,
                 data_quality_notes,
+                data_quality_warning_details,
             ),
             encoding="utf-8",
         )
@@ -73,7 +76,120 @@ class ReportWriter:
         comparison.drop_duplicates(subset=["strategy_name"], keep="last").to_csv(comparison_path, index=False)
         return {"report": report_path, "comparison": comparison_path}
 
-    def _render_report(self, batch: StrategyBatchResult, walkforward_rows: list[dict[str, Any]], hypothesis: str, description: str, timeframe: str, symbols: list[str], monte_carlo: dict[str, float], symbol_unit_notes: list[str], data_source_notes: list[str], data_quality_notes: list[str]) -> str:
+    def write_smoke_test_outputs(
+        self,
+        *,
+        strategy_name: str,
+        run_mode: str,
+        timeframe: str,
+        symbols: list[str],
+        start: str,
+        end: str,
+        parameters: dict[str, Any],
+        artifacts: BacktestArtifacts,
+        skipped_steps: list[str],
+    ) -> dict[str, Path]:
+        reports_dir = self.repo_root / "reports" / "generated"
+        exports_dir = self.repo_root / "exports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        exports_dir.mkdir(parents=True, exist_ok=True)
+        slug = f"{strategy_name}_smoke_test"
+
+        trade_log_path = exports_dir / f"{slug}_trade_log.csv"
+        equity_curve_path = exports_dir / f"{slug}_equity_curve.csv"
+        monthly_returns_path = exports_dir / f"{slug}_monthly_returns.csv"
+        summary_path = exports_dir / f"{slug}_summary.json"
+        report_path = reports_dir / f"{slug}_report.md"
+
+        artifacts.trades.to_csv(trade_log_path, index=False)
+        artifacts.equity_curve.to_csv(equity_curve_path, index=False)
+        artifacts.monthly_returns.to_csv(monthly_returns_path, index=False)
+        summary_payload = {
+            "strategy_name": strategy_name,
+            "run_mode": run_mode,
+            "timeframe": timeframe,
+            "symbols": symbols,
+            "start": start,
+            "end": end,
+            "parameters": parameters,
+            "data_sources": artifacts.data_sources,
+            "data_quality": artifacts.data_quality,
+            "metrics": artifacts.metrics.__dict__,
+            "skipped_steps": skipped_steps,
+        }
+        summary_path.write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
+        report_path.write_text(
+            self._render_smoke_test_report(
+                strategy_name=strategy_name,
+                run_mode=run_mode,
+                timeframe=timeframe,
+                symbols=symbols,
+                start=start,
+                end=end,
+                parameters=parameters,
+                artifacts=artifacts,
+                skipped_steps=skipped_steps,
+            ),
+            encoding="utf-8",
+        )
+        return {
+            "report": report_path,
+            "trade_log": trade_log_path,
+            "equity_curve": equity_curve_path,
+            "monthly_returns": monthly_returns_path,
+            "summary": summary_path,
+        }
+
+    def write_bounded_research_outputs(
+        self,
+        *,
+        symbol: str,
+        timeframe: str,
+        run_mode: str,
+        start: str,
+        end: str,
+        run_rows: list[dict[str, Any]],
+    ) -> dict[str, Path]:
+        reports_dir = self.repo_root / "reports" / "generated"
+        exports_dir = self.repo_root / "exports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        exports_dir.mkdir(parents=True, exist_ok=True)
+
+        report_path = reports_dir / "bounded_strategy_comparison_report.md"
+        runs_path = exports_dir / "bounded_strategy_comparison_runs.csv"
+        best_path = exports_dir / "bounded_strategy_comparison_best.csv"
+
+        runs = pd.DataFrame(run_rows)
+        best = (
+            runs.sort_values(
+                by=["return_to_max_drawdown", "profit_factor", "total_return"],
+                ascending=[False, False, False],
+            )
+            .groupby("strategy_name", as_index=False)
+            .head(1)
+            .reset_index(drop=True)
+        )
+        runs.to_csv(runs_path, index=False)
+        best.to_csv(best_path, index=False)
+        report_path.write_text(
+            self._render_bounded_research_report(
+                symbol=symbol,
+                timeframe=timeframe,
+                run_mode=run_mode,
+                start=start,
+                end=end,
+                runs=runs,
+                best=best,
+            ),
+            encoding="utf-8",
+        )
+        return {
+            "report": report_path,
+            "runs": runs_path,
+            "best": best_path,
+        }
+
+    def _render_report(self, batch: StrategyBatchResult, walkforward_rows: list[dict[str, Any]], hypothesis: str, description: str, timeframe: str, symbols: list[str], monte_carlo: dict[str, float], symbol_unit_notes: list[str], data_source_notes: list[str], data_quality_notes: list[str], data_quality_warning_details: list[str]) -> str:
         acceptance_lines = "\n".join(
             f"| {row['criterion']} | {row['status']} | {row['comment']} |" for row in batch.acceptance_rows
         )
@@ -125,6 +241,8 @@ class ReportWriter:
 {chr(10).join(f"  - {note}" for note in data_source_notes)}
 - Data-quality audit:
 {chr(10).join(f"  - {note}" for note in data_quality_notes)}
+- Warning-level same-day gaps:
+{chr(10).join(f"  - {note}" for note in data_quality_warning_details) if data_quality_warning_details else "  - None."}
 
 ## 6. Cost and execution assumptions
 - Explicit symbol-specific costs from `configs/base_config.yaml`
@@ -213,4 +331,146 @@ class ReportWriter:
 ## 16. Final verdict
 - Final label: {batch.classification}
 - Notes: {' '.join(batch.notes) if batch.notes else 'No extra notes.'}
+"""
+
+    def _render_smoke_test_report(
+        self,
+        *,
+        strategy_name: str,
+        run_mode: str,
+        timeframe: str,
+        symbols: list[str],
+        start: str,
+        end: str,
+        parameters: dict[str, Any],
+        artifacts: BacktestArtifacts,
+        skipped_steps: list[str],
+    ) -> str:
+        metrics = artifacts.metrics
+        average_position_size = float(artifacts.trades["position_size"].mean()) if not artifacts.trades.empty else 0.0
+        average_risk_amount = float(artifacts.trades["risk_amount_usd"].mean()) if not artifacts.trades.empty else 0.0
+        average_total_cost = (
+            float(
+                (
+                    artifacts.trades["spread_cost_usd"]
+                    + artifacts.trades["slippage_cost_usd"]
+                    + artifacts.trades["commission_cost_usd"]
+                ).mean()
+            )
+            if not artifacts.trades.empty
+            else 0.0
+        )
+        quality_lines = []
+        for symbol in symbols:
+            summary = artifacts.data_quality[symbol]
+            issues = " | ".join(issue["message"] for issue in summary["issues"]) if summary["issues"] else "None"
+            quality_lines.append(
+                f"- {symbol}: status={summary['status']}, fatal={summary['fatal_count']}, "
+                f"warning={summary['warning_count']}, issues={issues}"
+            )
+        yearly_lines = (
+            "\n".join(
+                f"| {row.year} | {row.return_:.2f} | {row.profit_factor:.2f} | {row.trades} |"
+                for row in artifacts.yearly_results.rename(columns={"return": "return_"}).itertuples()
+            )
+            if not artifacts.yearly_results.empty
+            else "| n/a | 0.00 | 0.00 | 0 |"
+        )
+        skipped_lines = "\n".join(f"- {step}" for step in skipped_steps)
+
+        return f"""# Lightweight Smoke Test Report — {strategy_name}
+
+## 1. Scope
+- Run mode: {run_mode}
+- Symbols: {', '.join(symbols)}
+- Timeframe: {timeframe}
+- Backtest window: {start} to {end}
+- Parameters: {parameters}
+
+## 2. Data audit
+{chr(10).join(quality_lines)}
+
+## 3. Backtest result
+- Total return: {metrics.total_return:.2f}
+- Profit factor: {metrics.profit_factor:.2f}
+- Max drawdown: {metrics.max_drawdown:.2f}
+- Return / Max DD: {metrics.return_to_max_drawdown:.2f}
+- Win rate: {metrics.win_rate:.2%}
+- Expectancy per trade: {metrics.expectancy_per_trade:.2f}
+- Expectancy in R: {metrics.expectancy_r:.4f}
+- Total trades: {metrics.total_trades}
+- Max consecutive losses: {metrics.consecutive_losses_max}
+
+## 4. Trade sanity checks
+- Average position size: {average_position_size:.4f}
+- Average intended risk amount (USD): {average_risk_amount:.2f}
+- Average total explicit cost per trade (USD): {average_total_cost:.2f}
+- Data sources: {artifacts.data_sources}
+
+## 5. Yearly summary
+| Year | Return | Profit factor | Trades |
+|---|---:|---:|---:|
+{yearly_lines}
+
+## 6. Intentionally skipped for smoke mode
+{skipped_lines}
+"""
+
+    def _render_bounded_research_report(
+        self,
+        *,
+        symbol: str,
+        timeframe: str,
+        run_mode: str,
+        start: str,
+        end: str,
+        runs: pd.DataFrame,
+        best: pd.DataFrame,
+    ) -> str:
+        best_lines = "\n".join(
+            f"- {row.strategy_name}: best parameter_index={row.parameter_index}, trades={row.trade_count}, "
+            f"return={row.total_return:.2f}, pf={row.profit_factor:.2f}, max_dd={row.max_drawdown:.2f}, "
+            f"return/max_dd={row.return_to_max_drawdown:.2f}, avg_cost={row.avg_explicit_cost_per_trade:.2f}"
+            for row in best.itertuples()
+        )
+        run_lines = "\n".join(
+            f"| {row.strategy_name} | {row.parameter_index} | {row.trade_count} | {row.total_return:.2f} | "
+            f"{row.profit_factor:.2f} | {row.max_drawdown:.2f} | {row.return_to_max_drawdown:.2f} | "
+            f"{row.avg_explicit_cost_per_trade:.2f} | {row.data_quality_status} |"
+            for row in runs.itertuples()
+        )
+        consistency_lines = []
+        for strategy_name, chunk in runs.groupby("strategy_name"):
+            positive_runs = int((chunk["total_return"] > 0).sum())
+            pf_above_one = int((chunk["profit_factor"] > 1.0).sum())
+            consistency_lines.append(
+                f"- {strategy_name}: {len(chunk)} bounded runs, positive runs={positive_runs}, pf>1 runs={pf_above_one}"
+            )
+
+        return f"""# Bounded Strategy Comparison Report
+
+## 1. Scope
+- Symbol: {symbol}
+- Timeframe: {timeframe}
+- Run mode: {run_mode}
+- Backtest window: {start} to {end}
+- Research shape: small bounded parameter subset only; no full pipeline
+
+## 2. Best run per strategy
+{best_lines}
+
+## 3. All bounded runs
+| Strategy | Param idx | Trades | Total return | Profit factor | Max DD | Return / Max DD | Avg explicit cost/trade | Data quality |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+{run_lines}
+
+## 4. Small-subset consistency
+{chr(10).join(consistency_lines)}
+
+## 5. Intentionally skipped
+- Broad parameter sweep
+- Neighbor sensitivity grid
+- Full walk-forward validation
+- Full stress-test matrix
+- Full train / validation / holdout research batch
 """
