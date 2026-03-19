@@ -39,6 +39,13 @@ def _base_frame(bars: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+def _allowed_hours(params: dict[str, object]) -> set[int]:
+    hours = params.get("allowed_hours")
+    if hours is None:
+        return ENABLED_HOURS
+    return {int(hour) for hour in hours}
+
+
 class LiquiditySweepReversalStrategy(BaseStrategy):
     def __init__(self) -> None:
         self.spec = StrategySpec(
@@ -83,23 +90,32 @@ class LiquiditySweepReversalStrategy(BaseStrategy):
         frame = _base_frame(bars)
         signals: list[SignalEvent] = []
         direction = str(params["direction"])
+        allowed_hours = _allowed_hours(params)
         for idx in range(20, len(frame) - 1):
             row = frame.iloc[idx]
-            if row["hour"] not in ENABLED_HOURS or pd.isna(row["atr"]) or pd.isna(row["asia_high"]) or row["bar_range"] <= 0:
+            if row["hour"] not in allowed_hours or pd.isna(row["atr"]) or pd.isna(row["asia_high"]) or row["bar_range"] <= 0:
                 continue
             min_sweep = float(params["min_sweep_atr"]) * float(row["atr"])
-            if row["asia_range"] <= 0:
+            min_asia_range_atr = float(params.get("min_asia_range_atr", 0.0))
+            if row["asia_range"] <= 0 or row["asia_range"] < min_asia_range_atr * float(row["atr"]):
                 continue
             close_in_range = (row["close"] - row["low"]) / row["bar_range"]
             upper_wick = (row["high"] - max(row["open"], row["close"])) / row["bar_range"]
             lower_wick = (min(row["open"], row["close"]) - row["low"]) / row["bar_range"]
+            body_fraction = abs(row["close"] - row["open"]) / row["bar_range"]
             entry = float(frame.iloc[idx + 1]["open"])
             atr = float(row["atr"])
 
             swept_above = row["high"] >= row["asia_high"] + min_sweep and row["close"] < row["asia_high"] - float(params["min_reentry_fraction"]) * row["asia_range"]
             swept_below = row["low"] <= row["asia_low"] - min_sweep and row["close"] > row["asia_low"] + float(params["min_reentry_fraction"]) * row["asia_range"]
 
-            if swept_above and upper_wick >= float(params["min_wick_fraction"]) and direction in {"short_only", "both"}:
+            if (
+                swept_above
+                and upper_wick >= float(params["min_wick_fraction"])
+                and body_fraction >= float(params.get("min_body_fraction", 0.0))
+                and close_in_range <= float(params.get("max_close_in_range", 1.0))
+                and direction in {"short_only", "both"}
+            ):
                 signals.append(
                     SignalEvent(
                         timestamp=frame.iloc[idx + 1]["timestamp"],
@@ -111,7 +127,13 @@ class LiquiditySweepReversalStrategy(BaseStrategy):
                         metadata={"reason": "asia_high_sweep_reversal_short"},
                     )
                 )
-            elif swept_below and lower_wick >= float(params["min_wick_fraction"]) and direction in {"long_only", "both"}:
+            elif (
+                swept_below
+                and lower_wick >= float(params["min_wick_fraction"])
+                and body_fraction >= float(params.get("min_body_fraction", 0.0))
+                and close_in_range >= float(params.get("min_close_in_range", 0.0))
+                and direction in {"long_only", "both"}
+            ):
                 signals.append(
                     SignalEvent(
                         timestamp=frame.iloc[idx + 1]["timestamp"],
