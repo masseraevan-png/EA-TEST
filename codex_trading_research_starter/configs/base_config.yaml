@@ -3,6 +3,12 @@ project:
   objective: robust_intraday_strategy_discovery
   phase: phase_1_simple_interpretable_strategies
 
+runtime:
+  default_run_mode: demo_mode
+  allowed_run_modes:
+    - demo_mode
+    - real_research_mode
+
 universe:
   symbols:
     - EURUSD
@@ -57,6 +63,7 @@ research_scope:
 risk_model:
   sizing_mode: fixed_fractional
   risk_per_trade: 0.005
+  initial_equity_usd: 100000
   max_open_positions_per_symbol: 1
   max_open_positions_total: 3
   pyramiding: false
@@ -110,6 +117,15 @@ costs:
 
   symbols:
     EURUSD:
+      asset_class: fx
+      base_currency: EUR
+      quote_currency: USD
+      contract_size: 100000
+      min_position_size: 0.01
+      position_size_step: 0.01
+      max_position_size: 100.0
+      price_increment: 0.00001
+      pip_size: 0.0001
       spread_value: 0.20
       spread_unit: pips
       slippage_value: 0.10
@@ -120,6 +136,15 @@ costs:
         - Zero-spread moments must not be treated as the research baseline.
 
     GBPUSD:
+      asset_class: fx
+      base_currency: GBP
+      quote_currency: USD
+      contract_size: 100000
+      min_position_size: 0.01
+      position_size_step: 0.01
+      max_position_size: 100.0
+      price_increment: 0.00001
+      pip_size: 0.0001
       spread_value: 0.40
       spread_unit: pips
       slippage_value: 0.15
@@ -129,6 +154,15 @@ costs:
         - Slightly harsher than best-case market conditions.
 
     USDJPY:
+      asset_class: fx
+      base_currency: USD
+      quote_currency: JPY
+      contract_size: 100000
+      min_position_size: 0.01
+      position_size_step: 0.01
+      max_position_size: 100.0
+      price_increment: 0.001
+      pip_size: 0.01
       spread_value: 0.40
       spread_unit: pips
       slippage_value: 0.10
@@ -138,6 +172,15 @@ costs:
         - Keep pip conventions explicit during implementation.
 
     XAUUSD:
+      asset_class: metal
+      base_currency: XAU
+      quote_currency: USD
+      contract_size: 100
+      min_position_size: 0.01
+      position_size_step: 0.01
+      max_position_size: 100.0
+      price_increment: 0.01
+      pip_size: null
       spread_value: 0.20
       spread_unit: usd
       slippage_value: 0.05
@@ -147,6 +190,15 @@ costs:
         - Gold execution can degrade during volatility bursts.
 
     NAS100:
+      asset_class: index_cfd
+      base_currency: NAS100
+      quote_currency: USD
+      contract_size: 1
+      min_position_size: 1.0
+      position_size_step: 1.0
+      max_position_size: 100.0
+      price_increment: 1.0
+      pip_size: null
       spread_value: 2.0
       spread_unit: index_points
       slippage_value: 0.5
@@ -156,6 +208,15 @@ costs:
         - Commission-free assumption is broker-style, but spread is intentionally conservative.
 
     US30:
+      asset_class: index_cfd
+      base_currency: US30
+      quote_currency: USD
+      contract_size: 1
+      min_position_size: 1.0
+      position_size_step: 1.0
+      max_position_size: 100.0
+      price_increment: 1.0
+      pip_size: null
       spread_value: 2.5
       spread_unit: index_points
       slippage_value: 0.75
@@ -210,10 +271,21 @@ stress_tests:
   monte_carlo_methods:
     - trade_order_shuffle
     - bootstrap_with_replacement
+    - block_bootstrap
   adverse_fill_scenarios:
     - base
     - moderate
     - harsh
+  delayed_entry_bars:
+    - 0
+    - 1
+  trade_skip_rates:
+    - 0.0
+    - 0.05
+    - 0.10
+  adverse_exit_slippage_multipliers:
+    - 0.0
+    - 1.0
   parameter_neighborhood:
     enabled: true
     neighborhood_steps: 1
