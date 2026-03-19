@@ -1,43 +1,15 @@
-# Strategies Folder
+# Example strategies
 
-This folder is for strategy definitions used by the Python research pipeline.
+This folder documents the two sample phase-1 strategy families wired into the Python pipeline.
 
-## Principle
+## 1. Session breakout
+- Hypothesis: breaks of a recent session range can continue during liquid London/New York hours.
+- Entry: next-bar-open after the close breaks above or below the rolling high/low plus an ATR buffer.
+- Exit: ATR stop, ATR target, or timeout in bars.
+- Main parameters: range lookback, breakout ATR buffer, stop ATR, target ATR, timeout, direction.
 
-Each strategy should represent **one clear hypothesis**.
-
-Avoid:
-- giant all-in-one strategy files,
-- mixing unrelated ideas in one module,
-- hidden discretionary logic,
-- and overly adaptive rules that are hard to explain.
-
-## Recommended structure per strategy
-
-A strategy module should ideally define:
-- strategy name
-- family
-- plain-English description
-- parameters and defaults
-- signal generation logic
-- exit logic
-- risk model assumptions, if strategy-specific
-- optional metadata such as preferred symbols or sessions
-
-## Keep it simple
-
-For phase 1:
-- prefer fewer parameters,
-- prefer direct price/session/volatility logic,
-- avoid indicator soup,
-- and make sure the strategy could be explained in a few sentences.
-
-## Typical examples for this repo
-
-- session breakout
-- mean reversion after expansion
-- pullback continuation
-- volatility compression / expansion
-- time-of-day effects
-
-If a strategy cannot be explained clearly, it probably should not be here.
+## 2. Mean reversion after expansion
+- Hypothesis: unusually large bars can mean-revert during liquid intraday sessions.
+- Entry: next-bar-open after a bar range exceeds ATR multiple and closes strongly in one direction.
+- Exit: ATR stop, ATR target, or timeout in bars.
+- Main parameters: expansion multiple, stop ATR, target ATR, timeout, direction.
