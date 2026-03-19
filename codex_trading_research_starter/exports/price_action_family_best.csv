@@ -1,0 +1,3 @@
+label,strategy_name,parameters,trade_count,avg_gross_pnl_per_trade,avg_net_pnl_per_trade,profit_factor,max_drawdown,avg_explicit_cost_per_trade
+liquidity_sweep_reversal_param_0,liquidity_sweep_reversal,"{'min_sweep_atr': 0.12, 'min_reentry_fraction': 0.15, 'min_wick_fraction': 0.35, 'stop_atr': 0.9, 'target_atr': 1.8, 'timeout_bars': 16, 'direction': 'both'}",137,57.04165589154756,-55.73060688217506,0.8496043064269013,15284.509500000728,112.77226277372262
+opening_drive_pullback_param_0,opening_drive_pullback,"{'impulse_body_atr': 0.9, 'break_buffer_atr': 0.1, 'max_pullback_fraction': 0.45, 'stop_atr': 1.0, 'target_atr': 1.8, 'timeout_bars': 20, 'direction': 'both'}",570,-19.18612606516412,-92.23998571428692,0.676581815166534,55510.24171428621,73.0538596491228
