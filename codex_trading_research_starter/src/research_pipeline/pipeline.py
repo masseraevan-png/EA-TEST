@@ -12,6 +12,7 @@ from .evaluation import AcceptanceEvaluator, ParameterSweep, StrategyBatchResult
 from .experiment_log import ExperimentLogger
 from .reporting import ReportWriter
 from .strategies.mean_reversion import MeanReversionAfterExpansionStrategy
+from .strategies.price_action import LiquiditySweepReversalStrategy, OpeningDrivePullbackStrategy
 from .strategies.session_breakout import SessionBreakoutStrategy
 from .walkforward import WalkForwardRunner
 
@@ -19,6 +20,8 @@ from .walkforward import WalkForwardRunner
 STRATEGY_REGISTRY = {
     "session_breakout": SessionBreakoutStrategy,
     "mean_reversion_after_expansion": MeanReversionAfterExpansionStrategy,
+    "liquidity_sweep_reversal": LiquiditySweepReversalStrategy,
+    "opening_drive_pullback": OpeningDrivePullbackStrategy,
 }
 
 

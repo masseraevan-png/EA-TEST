@@ -13,12 +13,15 @@ from research_pipeline.backtest import BacktestRunner
 from research_pipeline.config import load_config
 from research_pipeline.reporting import ReportWriter
 from research_pipeline.strategies.mean_reversion import MeanReversionAfterExpansionStrategy
+from research_pipeline.strategies.price_action import LiquiditySweepReversalStrategy, OpeningDrivePullbackStrategy
 from research_pipeline.strategies.session_breakout import SessionBreakoutStrategy
 
 
 STRATEGIES = {
     "session_breakout": SessionBreakoutStrategy,
     "mean_reversion_after_expansion": MeanReversionAfterExpansionStrategy,
+    "liquidity_sweep_reversal": LiquiditySweepReversalStrategy,
+    "opening_drive_pullback": OpeningDrivePullbackStrategy,
 }
 
 
